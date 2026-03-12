@@ -1,0 +1,35 @@
+# ── Secretos — NUNCA subir ────────────────────────────────────────────────────
+.env
+*.env
+service-account.json
+*.key
+*.pem
+secrets/
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# ── Datos locales ─────────────────────────────────────────────────────────────
+uploads/
+tmp/
+*.log
+logs/
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+.docker/
+
+# ── IDEs ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
