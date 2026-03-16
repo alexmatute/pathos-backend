@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, DateTime, Text, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
 from app.db.database import Base
 from app.core.config import settings
@@ -14,9 +15,9 @@ class DocumentEmbedding(Base):
     """
     __tablename__ = "document_embeddings"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    document_id: Mapped[str] = mapped_column(
-        String, ForeignKey("documents.id", ondelete="CASCADE"), unique=True, nullable=False
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), unique=True, nullable=False
     )
 
     # El embedding en sí (dimensión configurable vía settings)

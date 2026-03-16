@@ -5,6 +5,7 @@ from sqlalchemy import (
     ForeignKey, Enum as SAEnum, JSON, Integer
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import UUID
 from app.db.database import Base
 
 
@@ -12,7 +13,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     # ── Identity ──────────────────────────────────────────────────────────────
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     case_id: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     patient_id: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     specimen_id: Mapped[str] = mapped_column(String(100), nullable=True)
@@ -84,7 +85,7 @@ class Document(Base):
     tags: Mapped[list] = mapped_column(JSON, default=list)                     # tags libres
 
     # ── Author + Facility ─────────────────────────────────────────────────────
-    author_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     facility: Mapped[str] = mapped_column(String(255), nullable=True)
 
     # ── Relationships ─────────────────────────────────────────────────────────

@@ -42,8 +42,9 @@ async def login(
     user.last_login = datetime.now(timezone.utc)
     await db.commit()
 
-    access_token = create_access_token(user.id, user.role)
-    refresh_token = create_refresh_token(user.id, user.role)
+    # JWTs: incluir subject (user id) y rol
+    access_token = create_access_token({"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token({"sub": str(user.id), "role": user.role})
 
     await log_event(
         db, action="LOGIN",
