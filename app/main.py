@@ -1,9 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 import structlog
-import time
 
 from app.core.config import settings
 from app.db.database import init_db
@@ -18,18 +16,11 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     logger.info("PathOS starting", env=settings.APP_ENV)
     await init_db()
-    logger.info("Database initialized")
     yield
     logger.info("PathOS shutting down")
 
-app = FastAPI(
-    title="PathOS — Clinical RAG API",
-    description="Sistema RAG Clínico para Patólogos",
-    version="1.0.0",
-    lifespan=lifespan,
-)
+app = FastAPI(title="PathOS — Clinical RAG API", version="1.0.0", lifespan=lifespan)
 
-# ── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,12 +29,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(documents_router, prefix="/api", tags=["Documents"])
-app.include_router(chat_router, prefix="/api", tags=["Chat"])
-app.include_router(search_router, prefix="/api", tags=["Search"])
-app.include_router(audit_router, prefix="/api", tags=["Audit"])
+app.include_router(auth_router, prefix="/api")
+app.include_router(documents_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")
+app.include_router(search_router, prefix="/api")
+app.include_router(audit_router, prefix="/api")
 
 @app.get("/health")
 async def health():
