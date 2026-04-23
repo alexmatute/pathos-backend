@@ -31,6 +31,283 @@ PathOS is a **secure, internal clinical RAG (Retrieval-Augmented Generation) sys
 |**HIPAA audit trail**|Immutable logs for every access, upload, and query — full compliance tracking             |
 
 -----
+# PathOS — Scope, Mission & Overview
+
+**Version:** 1.0.0  
+**Status:** Active Development — 2025  
+**Organization:** Private Clinical Laboratory — Hermosillo, Sonora, México  
+**Classification:** Confidential — Internal use only
+
+-----
+
+## 1. Executive Summary
+
+PathOS is a secure, AI-powered clinical information system built exclusively for a private pathology laboratory in Hermosillo, Sonora, México. It transforms unstructured pathology reports into a searchable, intelligent knowledge base — enabling clinicians to find case information, identify critical diagnoses, and receive automated alerts in seconds rather than hours.
+
+|Metric                     |Value               |
+|---------------------------|--------------------|
+|API endpoints              |16                  |
+|Vector embedding dimensions|768d                |
+|Search response time       |< 100ms             |
+|Compliance target          |HIPAA + NOM-024-SSA3|
+
+PathOS addresses three critical gaps in the current clinical workflow:
+
+- Pathology reports are stored as unindexed PDFs with no full-text or semantic search capability
+- Clinicians spend significant time manually locating prior cases, biomarker results, or comparative diagnoses
+- There is no automated mechanism to escalate critical or malignant findings to the responsible team in real time
+
+-----
+
+## 2. Mission
+
+PathOS exists to reduce the time between a pathology result being produced and a clinician being able to act on it — from hours to seconds.
+
+> **Mission Statement**
+> 
+> To provide clinicians and pathologists at our facility with immediate, secure, and intelligent access to the complete history of pathology cases — eliminating information silos, accelerating diagnosis workflows, and ensuring no critical finding goes unnoticed.
+
+### 2.1 Core Values
+
+|Value                 |How PathOS embodies it                                                                                                                        |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+|Patient safety first  |Critical and malignant findings trigger immediate automated alerts to the responsible pathologist via Telegram — no manual monitoring required|
+|Privacy by design     |All patient data is classified as PHI. Detection is automatic. Access requires authentication. Every action is logged permanently             |
+|Clinical accuracy     |Claude-powered RAG answers are grounded in the actual indexed report content and always cite the source case ID and date                      |
+|Operational efficiency|What took minutes of manual PDF search now resolves in under 100ms via pgvector cosine similarity                                             |
+|Regulatory compliance |Immutable audit logs aligned with HIPAA standards and NOM-024-SSA3 (Mexican electronic clinical records regulation)                           |
+
+### 2.2 What PathOS is not
+
+- **Not a diagnostic tool** — PathOS does not generate medical diagnoses. It retrieves and presents existing clinical findings
+- **Not a replacement for the pathologist** — all clinical judgments remain with the licensed professional
+- **Not a public-facing product** — it is an internal system for authorized facility staff only
+- **Not a generic document management system** — it is purpose-built for pathology workflows
+
+-----
+
+## 3. Project Overview
+
+### 3.1 System description
+
+PathOS combines a FastAPI backend, a PostgreSQL 15 database with the pgvector extension, a React frontend, and the Anthropic Claude API to create a closed-loop clinical intelligence platform. Documents enter through a five-stage automated pipeline and exit as queryable, cited knowledge available through a web interface and a Telegram bot.
+
+### 3.2 Ingestion pipeline
+
+|Stage            |Technology                               |Output                                                     |
+|-----------------|-----------------------------------------|-----------------------------------------------------------|
+|1 — Upload       |multipart/form-data → FastAPI            |Raw file stored, background job queued                     |
+|2 — OCR          |Tesseract + PyMuPDF                      |Full extracted text                                        |
+|3 — PHI detection|Regex (SSN, MRN, DOB, phone, NPI)        |PHI flags, sensitivity classification                      |
+|4 — AI tagging   |Anthropic Claude — JSON structured output|organ_system, malignancy, priority, diagnosis_summary, tags|
+|5 — Embedding    |sentence-transformers (all-mpnet, 768d)  |Vector stored in pgvector HNSW index                       |
+
+All five stages execute asynchronously via the Celery worker. The API returns a document ID immediately on upload.
+
+### 3.3 Query capabilities
+
+|Mode         |Description                                                                                                                                |Endpoint          |
+|-------------|-------------------------------------------------------------------------------------------------------------------------------------------|------------------|
+|Hybrid search|Combines cosine vector similarity (pgvector HNSW) with SQL filters for organ, malignancy, priority, and status                             |`POST /api/search`|
+|RAG chat     |Natural language questions answered by Claude using retrieved document chunks as context. Answers always cite the source `case_id` and date|`POST /api/chat`  |
+|Telegram bot |Subset of search and chat accessible via the facility’s Telegram bot — optimized for mobile and on-call workflows                          |`@pathos_bot`     |
+
+### 3.4 Access control
+
+PathOS enforces role-based access control (RBAC) with three roles. All authentication is JWT-based with 30-minute access tokens and 7-day refresh tokens.
+
+|Role         |Permissions                                                                      |Typical user                           |
+|-------------|---------------------------------------------------------------------------------|---------------------------------------|
+|`admin`      |Full system access — create users, view all audit logs, manage all documents     |System administrator                   |
+|`pathologist`|Upload, search, RAG chat, receive Telegram alerts, view all documents            |Senior pathologist, attending physician|
+|`viewer`     |Read-only access to documents and search results. Cannot upload or trigger alerts|Resident, extern, read-only staff      |
+
+-----
+
+## 4. Project Scope
+
+### 4.1 In scope
+
+#### Document management
+
+- Upload of PDF, DOCX, and TXT pathology reports up to 50 MB per file
+- Automatic OCR text extraction using Tesseract and PyMuPDF
+- Automatic PHI detection (SSN, MRN, date of birth, phone number, email, NPI formats)
+- AI-powered metadata tagging via Anthropic Claude: document type, organ system, malignancy classification, priority, diagnosis summary
+- Vector embedding generation (768 dimensions) stored in PostgreSQL with pgvector HNSW index
+- Document download via pre-signed URL
+- Manual tag editing by pathologists and administrators
+- Soft delete with audit trail preservation
+
+#### Search and retrieval
+
+- Hybrid semantic + keyword search with cosine similarity scoring
+- Filter by organ system, malignancy, priority, status, and date range
+- Search result ranking by vector similarity score
+- Full document detail view including all AI-generated metadata
+
+#### AI-assisted clinical chat
+
+- Natural language question answering against the indexed document repository
+- Conversation history support (multi-turn queries)
+- Mandatory source citations in every response (`case_id` + date)
+- Fallback handling when no relevant documents are found
+
+#### Notifications and alerts
+
+- Telegram bot with commands: `/start`, `/resumen`, `/alertas`, `/notificar`, free-text RAG query, PDF upload
+- Automated daily morning report (7:00 AM, weekdays)
+- Automated midday critical case review (1:00 PM, weekdays)
+- Automated every-30-minute critical case monitor (8 AM–6 PM, weekdays)
+- Webhook-triggered real-time alerts for newly ingested critical or malignant documents
+
+#### Security and compliance
+
+- JWT authentication with role-based access control (admin / pathologist / viewer)
+- bcrypt password hashing (cost factor 12)
+- Immutable append-only audit log for all user actions
+- CORS configuration restricting access to authorized frontend domains only
+- PHI classification and tagging on all patient-related documents
+
+#### Infrastructure
+
+- Docker Compose with four services: FastAPI API, Celery worker, PostgreSQL 15 + pgvector, Redis
+- Nginx reverse proxy serving frontend (`tudominio.com`) and API (`api.tudominio.com`) from a single GCP VM
+- SSL/TLS via Let’s Encrypt with automatic certificate renewal
+- Deployment target: Google Cloud Platform — e2-standard-2 (2 vCPU, 8 GB RAM, 50 GB SSD)
+- File storage: Google Cloud Storage (production) / local filesystem (development)
+
+-----
+
+### 4.2 Out of scope
+
+> ⚠️ The following capabilities are **not** included in PathOS v1.0 and are not planned unless explicitly approved by the facility owners.
+
+- AI-generated diagnoses or clinical recommendations
+- Integration with external EMR/EHR systems (Epic, SAP Health, or similar)
+- Patient-facing portal or any form of public access
+- Billing or insurance claim processing
+- Image analysis of histopathology slides (scanned microscopy images)
+- Multi-facility or multi-tenant deployment
+- Real-time collaboration or multi-user document editing
+- Native mobile application (iOS / Android)
+
+-----
+
+### 4.3 Technical constraints
+
+|Constraint          |Detail                                                                   |
+|--------------------|-------------------------------------------------------------------------|
+|Maximum file size   |50 MB per document upload                                                |
+|Supported file types|PDF (primary), DOCX, TXT                                                 |
+|Embedding model     |sentence-transformers/all-mpnet-base-v2 — 768 dimensions, English/Spanish|
+|LLM provider        |Anthropic Claude only — no local model fallback in v1.0                  |
+|Cloud provider      |Google Cloud Platform — VM-based, not serverless                         |
+|Deployment model    |Single VM, single region — no multi-zone redundancy in v1.0              |
+|Authentication      |JWT only — no OAuth2, SAML, or SSO in v1.0                               |
+|Language support    |Spanish (primary UI and reports) and English (API, code, documentation)  |
+
+-----
+
+## 5. Stakeholders
+
+|Role                        |Responsibilities in PathOS                                                                                                                           |
+|----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+|Pathologist *(primary user)*|Performs searches and RAG queries. Reviews AI-generated tags for accuracy. Receives and acts on Telegram alerts. Uploads case documents.             |
+|Laboratory technician       |Uploads pathology PDFs into the system. Monitors ingestion status. Sends notifications to the technicians group via `/notificar`.                    |
+|Facility administrator      |Manages user accounts and role assignments. Reviews the full audit trail. Monitors system health and security alerts.                                |
+|System developer            |Maintains the codebase, deploys updates, manages GCP infrastructure, and integrates new AI capabilities as they become available.                    |
+|External AI provider        |Anthropic — provides the Claude API for auto-tagging and RAG responses. Subject to API rate limits and usage costs.                                  |
+|Regulatory framework        |HIPAA (data handling) and NOM-024-SSA3 (Mexican electronic clinical records). PathOS is designed to support compliance, not to replace legal counsel.|
+
+-----
+
+## 6. Assumptions and Risks
+
+### 6.1 Key assumptions
+
+- All users access PathOS through the facility’s internal network or a trusted, authenticated device
+- Pathology reports uploaded to the system are final or near-final — drafts may receive inaccurate AI-generated tags
+- The Anthropic API remains available and costs remain within budget; the system degrades gracefully if unavailable (tagging falls back to defaults, chat is disabled)
+- The GCP VM remains running; a restart restores all services automatically via Docker’s `restart: unless-stopped` policy
+- Users understand that PathOS is a support tool — clinical decisions remain the responsibility of the licensed pathologist
+
+### 6.2 Risk register
+
+|Risk                            |Likelihood|Mitigation                                                                                                           |
+|--------------------------------|----------|---------------------------------------------------------------------------------------------------------------------|
+|PHI leak via uncontrolled export|Low       |All downloads require authentication. PHI detection flags sensitive documents. Audit log records every access event. |
+|AI tagging inaccuracy           |Medium    |Tags are AI-generated suggestions, not authoritative. Pathologists review and can edit any tag at any time.          |
+|Anthropic API downtime          |Low       |Ingestion pipeline falls back to default tags. RAG chat is disabled with a clear user-facing message.                |
+|Unauthorized access attempt     |Low       |JWT authentication, bcrypt hashing, and audit logs with login failure tracking. Alerts for repeated failures.        |
+|GCP VM failure                  |Low       |Docker restart policy restores services on reboot. Patient data persists in the PostgreSQL volume.                   |
+|Storage cost growth             |Medium    |Documents are stored in GCS Standard tier. Cost scales linearly with volume — monitor monthly via GCP billing alerts.|
+
+-----
+
+## 7. Regulatory and Compliance Alignment
+
+PathOS is designed to support — but not replace — formal compliance programs. The table below maps system controls to applicable standards.
+
+|Requirement                      |Standard                  |PathOS control                                                                            |
+|---------------------------------|--------------------------|------------------------------------------------------------------------------------------|
+|Access control                   |HIPAA § 164.312(a)(1)     |JWT authentication, RBAC with three roles, session expiration                             |
+|Audit controls                   |HIPAA § 164.312(b)        |Append-only audit log recording all access, queries, uploads, and login events            |
+|Automatic logoff                 |HIPAA § 164.312(a)(2)(iii)|30-minute JWT token expiration with refresh flow                                          |
+|PHI safeguards                   |HIPAA § 164.312(e)(2)(ii) |PHI auto-detection and tagging; all data transmitted via HTTPS only                       |
+|Electronic clinical record format|NOM-024-SSA3 (México)     |Document metadata, creator ID, timestamps, and audit trail preserved for all records      |
+|Data integrity                   |HIPAA § 164.312(c)(1)     |PostgreSQL ACID transactions; immutable audit log; pgvector embeddings tied to document ID|
+
+
+> **Note:** Consult qualified legal counsel before using this compliance mapping for formal certification or regulatory submissions.
+
+-----
+
+## 8. Delivery and Deployment
+
+### 8.1 Deployment environment
+
+|Component             |Specification                                                |
+|----------------------|-------------------------------------------------------------|
+|Cloud provider        |Google Cloud Platform                                        |
+|VM type               |e2-standard-2 — 2 vCPU, 8 GB RAM, 50 GB SSD                  |
+|Operating system      |Ubuntu 22.04 LTS                                             |
+|Containerization      |Docker Compose — four services (api, worker, postgres, redis)|
+|Frontend hosting      |Nginx serving React build at `tudominio.com`                 |
+|API hosting           |Nginx reverse proxy at `api.tudominio.com` → `localhost:8000`|
+|SSL/TLS               |Let’s Encrypt — auto-renewing via certbot                    |
+|File storage          |Google Cloud Storage — Standard tier                         |
+|Estimated monthly cost|~$55 USD/month (covered by $300 GCP free trial for ~5 months)|
+
+### 8.2 Repositories
+
+|Repository                            |Contents                                                                              |
+|--------------------------------------|--------------------------------------------------------------------------------------|
+|`github.com/alexmatute/pathos-backend`|FastAPI application, Celery worker, Docker Compose, database models, services, schemas|
+|`github.com/alexmatute/pathos-ui`     |React 18 + Vite frontend, production environment configuration                        |
+
+### 8.3 Update process
+
+All code changes are pushed to GitHub and deployed to the GCP VM using the `~/deploy.sh` script, which pulls the latest code, rebuilds Docker images, and recompiles the React frontend without downtime.
+
+-----
+
+## 9. Glossary
+
+|Term            |Definition                                                                                                                                              |
+|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+|**RAG**         |Retrieval-Augmented Generation — an AI technique that retrieves relevant documents from a knowledge base and uses them as context for generating answers|
+|**pgvector**    |A PostgreSQL extension that adds vector data types and similarity search operators, enabling semantic search directly in the database                   |
+|**HNSW**        |Hierarchical Navigable Small World — a graph-based approximate nearest neighbor algorithm used for fast vector similarity search                        |
+|**Embedding**   |A numerical vector representation of text, capturing semantic meaning so that similar texts produce similar vectors                                     |
+|**PHI**         |Protected Health Information — any data that can identify a patient (name, MRN, SSN, date of birth, etc.)                                               |
+|**JWT**         |JSON Web Token — a signed, self-contained token used for stateless authentication between client and server                                             |
+|**RBAC**        |Role-Based Access Control — a method of regulating access by assigning permissions to roles rather than to individual users                             |
+|**Celery**      |A distributed task queue for Python used to execute background jobs asynchronously (OCR, embedding generation, notifications)                           |
+|**n8n**         |A workflow automation platform used to orchestrate the Telegram bot, scheduled alerts, and email notifications                                          |
+|**NOM-024-SSA3**|Mexican Official Standard governing the interoperability and security requirements for health information systems and electronic clinical records       |
+
+-----
 
 ## Repository structure
 
